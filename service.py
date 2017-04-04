@@ -16,7 +16,7 @@ def login():
 		if validate_login(request.form):
 			return redirect(url_for('chat'))
 		else:
-			return redirect(url_for('bad_login'), code=400)
+			return redirect(url_for('login'), code=400)
 
 	else: 
 		return render_template('login.html')
