@@ -4,6 +4,22 @@
 	<title>Chat</title>
 </head>
 <body>
-<h2>Hello World</h2>
+  <table>
+     <thead>
+        <tr>
+           <th>Mensajes</th>
+        </tr>
+     </thead>
+     
+     <tbody>
+        {% for mensaje in mensajes %}
+           <tr>
+              <td>{{ mensaje.contenido }}</td>
+           </tr>
+        {% endfor %}
+     </tbody>
+  </table>
+
+  
 </body>
 </html>
