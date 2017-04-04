@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, abort
 app = Flask(__name__)
 
 def validate_login(form):
@@ -16,8 +16,7 @@ def login():
 		if validate_login(request.form):
 			return redirect(url_for('chat'))
 		else:
-			return redirect(url_for('login'), code=400)
-
+			abort(400)
 	else: 
 		return render_template('login.html')
 
@@ -27,11 +26,11 @@ def chat():
 
 @app.errorhandler(404)
 def not_found(error):
-    return render_template('error.html'), 404
+    return render_template('404.html'), 404
 
 @app.errorhandler(400)
-def bad_login(error):
-    return render_template('login.html'), 400
+def invalid_login(error):
+    return redirect(url_for('login'))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0')
