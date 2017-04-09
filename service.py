@@ -1,6 +1,10 @@
 #------------------------------IMPORT------------------------------#
-from flask import Flask, render_template, request, redirect, url_for, abort
+from flask import Flask, request 
+from flask.json import jsonify
 from flask_sqlalchemy import SQLAlchemy
+import jwt
+import bcrypt
+from datetime import datetime
 #------------------------------------------------------------------#
 
 
@@ -10,7 +14,7 @@ from flask_sqlalchemy import SQLAlchemy
 #-------------FLASK-------------#
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///webservice.db/'
-app.config['SECRET_KEY'] = "random string"
+app.config['SECRET_KEY'] = "Kira did nothing wrong"
 #-------------------------------#
 
 
@@ -27,11 +31,11 @@ db = SQLAlchemy(app)
 class Usuario(db.Model):
 	__tablename__ = 'usuarios'
 	id = db.Column(db.Integer, primary_key=True)
-	user = db.Column(db.String(100), unique=True)
-	password = db.Column(db.String(100))
-
-	def __init__(self, user, password):
-		self.user = user
+	nombre = db.Column(db.String(100), unique=True, nullable=False)
+	password = db.Column(db.String(100), nullable=False)
+	#mensajes = db.relationship('Mensaje', backref='usuario', lazy='dynamic')
+	def __init__(self, nombre, password):
+		self.nombre = nombre
 		self.password = password
 #-------------------------------#
 
@@ -40,49 +44,17 @@ class Usuario(db.Model):
 class Mensaje(db.Model):
 	__tablename__ = 'mensajes'
 	id = db.Column(db.Integer, primary_key=True)
-	contenido = db.Column(db.String(100))
-   
-	def __init__(self, contenido):
-		self.contenido = contenido
-#-------------------------------#
-
-
-#-------------ENVIO-------------#
-class Envio(db.Model):
-	__tablename__ = 'envios'
-	id = db.Column(db.Integer, primary_key=True)
 	usuario_id = db.Column(db.Integer, db.ForeignKey('usuarios.id'))
-	mensaje_id = db.Column(db.Integer, db.ForeignKey('mensajes.id'))
+	contenido = db.Column(db.String(100))
+	timestamp = db.Column(db.DateTime)
    
-	def __init__(self, usuario_id, mensaje_id):
+	def __init__(self, usuario_id, contenido):
 		self.usuario_id = usuario_id
-		self.mensaje_id = mensaje_id
+		self.contenido = contenido
+		self.timestamp = datetime.utcnow()
 #-------------------------------#
 #----------------------------------------------------------------#
 
-
-
-
-#----------------------------FUNCIONES---------------------------#
-#-------------LOGIN-------------#
-def validate_login(form):
-	success = False
-	usuario = Usuario.query.filter_by(user=form['user']).first();
-	if usuario:
-		if usuario.password == form['password']:
-			success = True
-	return success
-#-------------------------------#
-
-
-#------------REGISTER-----------#
-def do_register(form):
-	usuario = Usuario(form['user'], form['password'])
-	db.session.add(usuario)
-	db.session.commit()
-	return
-#-------------------------------#
-#----------------------------------------------------------------#
 
 
 
@@ -91,67 +63,64 @@ def do_register(form):
 #------------DEFAULT------------#
 @app.route('/')
 def index():
-    return render_template('index.html')
+    return 'Hello world'
 #-------------------------------#
 
 
-#-------------LOGIN-------------#
-@app.route('/login', methods=['POST', 'GET'])
-def login():
+#------------USUARIO------------#
+@app.route('/usuario', methods=['POST', 'GET'])
+def usuario():
 	if request.method == 'POST':
-		if validate_login(request.form):
-			return redirect(url_for('chat'))
-		else:
-			abort(400)
-	else: 
-		return render_template('login.html')
+		crypted_pass = bcrypt.hashpw(request.form.get('password').encode('utf-8'), bcrypt.gensalt())
+		usuario = Usuario(request.form.get('nombre'), crypted_pass)
+		db.session.add(usuario)
+		db.session.commit()
+		return '', 200
+	else:
+		usuarios = Usuario.query.all()
+		data = {}
+		for usuario in usuarios:
+			data[usuario.id] = usuario.nombre
+		return jsonify(data), {'Content-Type': 'application/json'}
+
+@app.route('/usuario/<nombre>')
+def usuario_nombre(nombre):
+	usuario = Usuario.query.filter_by(nombre=nombre).first();
+	if usuario:
+		return jsonify({'id':usuario.id}), {'Content-Type': 'application/json'}
+	else:
+		return ''
+
+@app.route('/usuario/<id_usuario>/<password>')
+def usuario_validacion(id_usuario, password):
+	usuario = Usuario.query.filter_by(id=id_usuario).first();
+	if bcrypt.checkpw(password.encode('utf-8'), usuario.password):
+		token = jwt.encode({'id': id_usuario}, 'Za Warudo', algorithm='HS256')
+		return jsonify({'token':token.decode('utf-8')}), {'Content-Type': 'application/json'}
+	return 403
 #-------------------------------#
 
 
-#------------REGISTER-----------#
-@app.route('/register', methods=['POST', 'GET'])
-def register():
+#------------MENSAJES-----------#
+@app.route('/mensajes', methods=['POST', 'GET'])
+def mensajes():
+	token = request.headers.get('Authorization')
+	bytes_token = token.encode('utf-8')
+	usuario_id = jwt.decode(token, 'Za Warudo', algorithms=['HS256']).get('id')
 	if request.method == 'POST':
-		do_register(request.form)
-		return redirect(url_for('usuarios'))
-	else: 
-		return render_template('register.html')
-#-------------------------------#
-
-
-#--------LISTA-USUARIOS---------#
-@app.route('/usuarios')
-def usuarios():
-    return render_template('show_all.html', usuarios = Usuario.query.all() )
-#-------------------------------#
-
-
-#-------------CHAT--------------#
-@app.route('/chat')
-def chat():
-	
-    return render_template('chat.html')
+		mensaje = Mensaje(usuario_id, request.form.get('contenido'))
+		db.session.add(mensaje)
+		db.session.commit()
+		return '', 200
+	else:
+		mensajes = Mensaje.query.filter_by(usuario_id=usuario_id).all();
+		data = {}
+		for mensaje in mensajes:
+			data[mensaje.id] = {'timestamp':mensaje.timestamp, 'contenido':mensaje.contenido}
+		return jsonify(data), {'Content-Type': 'application/json'}
 #-------------------------------#
 #----------------------------------------------------------------#
 
-
-
-
-
-#--------------------------ERROR-HANDLER-------------------------#
-#---------RUTA-INVALIDA---------#
-@app.errorhandler(404)
-def not_found(error):
-    return render_template('404.html'), 404
-#-------------------------------#
-
-
-#--------LOGIN-INVALIDO---------#
-@app.errorhandler(400)
-def invalid_login(error):
-    return redirect(url_for('login'))
-#-------------------------------#
-#----------------------------------------------------------------#
 
 
 
@@ -159,5 +128,5 @@ def invalid_login(error):
 #------------------------------MAIN------------------------------#
 if __name__ == '__main__':
 	db.create_all()
-	app.run(debug = True)
+	app.run(port = 5001, debug = True)
 #----------------------------------------------------------------#
