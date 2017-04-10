@@ -4,6 +4,7 @@ import requests
 import queue
 import json
 from requests.exceptions import ConnectionError
+
 #------------------------------------------------------------------#
 
 
@@ -14,9 +15,13 @@ from requests.exceptions import ConnectionError
 app = Flask(__name__)
 app.secret_key = 'Kira did nothing wrong'
 #-------------------------------#
+
+#-------------MAP-------------#
+mapaCola = {}
+#-----------------------------#
+
+
 #------------------------------------------------------------------#
-
-
 
 
 #------------------------------RUTAS-----------------------------#
@@ -36,12 +41,18 @@ def mensajes():
 		try:
 			payload = {'contenido':request.form['contenido']}
 			url = 'http://localhost:5001/mensajes'
-			requests.post(url, data=payload, headers=headers)
+			if not (session['token'] in mapaCola):
+				mapaCola[session['token']] = queue.Queue()
+			mapaCola[session['token']].put(payload)	
+			while not mapaCola[session['token']].empty():	
+				requests.post(url, data=list(mapaCola[session['token']].queue)[0], headers=headers)
+				mapaCola[session['token']].get()
 			return redirect(url_for('mensajes'))
 		except ConnectionError:
 			return redirect(url_for('mensajes'))
 	else:
 		error = ""
+		mensajes={}
 		try:
 			url = 'http://localhost:5001/mensajes'
 			response = requests.get(url, headers=headers)

@@ -107,6 +107,7 @@ def mensajes():
 	token = request.headers.get('Authorization')
 	bytes_token = token.encode('utf-8')
 	usuario_id = jwt.decode(token, 'Za Warudo', algorithms=['HS256']).get('id')
+	
 	if request.method == 'POST':
 		mensaje = Mensaje(usuario_id, request.form.get('contenido'))
 		db.session.add(mensaje)
