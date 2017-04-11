@@ -25,6 +25,7 @@ app.secret_key = env['SESSION_SECRET']
 
 #--------------MAP--------------#
 mapa_cola = {}
+semaforo = {}
 #-------------------------------#
 #------------------------------------------------------------------#
 
@@ -44,14 +45,21 @@ def mensajes():
 	headers = {"Authorization":session['token']}
 	if request.method == 'POST':
 		try:
+			if not (session['token'] in semaforo):
+				semaforo[session['token']] = True
 			payload = {'contenido':request.form['contenido']}
 			url = env['SERVER_HOST']+':'+env['SERVER_PORT']+'/mensajes'
 			if not (session['token'] in mapa_cola):
 				mapa_cola[session['token']] = queue.Queue()
-			mapa_cola[session['token']].put(payload)	
+			mapa_cola[session['token']].put(payload)
+			if semaforo[session['token']]:
+				return redirect(url_for('mensajes'))
+			else:
+				semaforo[session['token']] = True
 			while not mapa_cola[session['token']].empty():	
 				requests.post(url, data=list(mapa_cola[session['token']].queue)[0], headers=headers)
 				mapa_cola[session['token']].get()
+			semaforo[session['token']] = False
 			return redirect(url_for('mensajes'))
 		except ConnectionError:
 			return redirect(url_for('mensajes'))
