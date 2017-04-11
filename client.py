@@ -3,24 +3,29 @@ from flask import Flask, render_template, request, url_for, redirect, session
 import requests
 import queue
 import json
+import ast
 from requests.exceptions import ConnectionError
-
 #------------------------------------------------------------------#
 
 
 
 
 #-------------------------------INIT-------------------------------#
-#-------------FLASK-------------#
-app = Flask(__name__)
-app.secret_key = 'Kira did nothing wrong'
+#--------------ENV--------------#
+env = open('.env', 'r')
+env = ast.literal_eval(env.read())
 #-------------------------------#
 
-#-------------MAP-------------#
-mapaCola = {}
-#-----------------------------#
+
+#-------------FLASK-------------#
+app = Flask(__name__)
+app.secret_key = env['SESSION_SECRET']
+#-------------------------------#
 
 
+#--------------MAP--------------#
+mapa_cola = {}
+#-------------------------------#
 #------------------------------------------------------------------#
 
 
@@ -40,13 +45,13 @@ def mensajes():
 	if request.method == 'POST':
 		try:
 			payload = {'contenido':request.form['contenido']}
-			url = 'http://localhost:5001/mensajes'
-			if not (session['token'] in mapaCola):
-				mapaCola[session['token']] = queue.Queue()
-			mapaCola[session['token']].put(payload)	
-			while not mapaCola[session['token']].empty():	
-				requests.post(url, data=list(mapaCola[session['token']].queue)[0], headers=headers)
-				mapaCola[session['token']].get()
+			url = env['SERVER_HOST']+':'+env['SERVER_PORT']+'/mensajes'
+			if not (session['token'] in mapa_cola):
+				mapa_cola[session['token']] = queue.Queue()
+			mapa_cola[session['token']].put(payload)	
+			while not mapa_cola[session['token']].empty():	
+				requests.post(url, data=list(mapa_cola[session['token']].queue)[0], headers=headers)
+				mapa_cola[session['token']].get()
 			return redirect(url_for('mensajes'))
 		except ConnectionError:
 			return redirect(url_for('mensajes'))
@@ -54,7 +59,7 @@ def mensajes():
 		error = ""
 		mensajes={}
 		try:
-			url = 'http://localhost:5001/mensajes'
+			url = env['SERVER_HOST']+':'+env['SERVER_PORT']+'/mensajes'
 			response = requests.get(url, headers=headers)
 			mensajes = response.json()
 		except ConnectionError:
@@ -69,10 +74,10 @@ def login():
 
 	if request.method == 'POST':
 		try: 
-			url = 'http://localhost:5001/usuario/'+request.form['nombre']
+			url = env['SERVER_HOST']+':'+env['SERVER_PORT']+'/usuario/'+request.form['nombre']
 			response = requests.get(url)
 			usuario_id = str(response.json()['id'])
-			url = 'http://localhost:5001/usuario/'+usuario_id+'/'+request.form['password']
+			url = env['SERVER_HOST']+':'+env['SERVER_PORT']+'/usuario/'+usuario_id+'/'+request.form['password']
 			response = requests.get(url)
 			session.clear()
 			session['nombre'] = request.form['nombre']
@@ -92,7 +97,7 @@ def registrar():
 	if request.method == 'POST':
 		try:
 			payload = {'nombre':request.form['nombre'], 'password':request.form['password']}
-			url = 'http://localhost:5001/usuario'
+			url = env['SERVER_HOST']+':'+env['SERVER_PORT']+'/usuario'
 			requests.post(url, data=payload)
 			return redirect(url_for('login'))
 		except ConnectionError:
@@ -112,5 +117,5 @@ def logout():
 
 #------------------------------MAIN------------------------------#
 if __name__ == '__main__':
-	app.run()
+	app.run(host=env['CLIENT_HOST'], port=env['CLIENT_PORT'])
 #----------------------------------------------------------------#

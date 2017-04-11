@@ -11,10 +11,16 @@ from datetime import datetime
 
 
 #-------------------------------INIT-------------------------------#
+#--------------ENV--------------#
+env = open('.env', 'r')
+env = ast.literal_eval(env.read())
+#-------------------------------#
+
+
 #-------------FLASK-------------#
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///webservice.db/'
-app.config['SECRET_KEY'] = "Kira did nothing wrong"
+app.config['SQLALCHEMY_DATABASE_URI'] = env['DATABASE_URI']
+app.config['SECRET_KEY'] = env['SESSION_SECRET']
 #-------------------------------#
 
 
@@ -33,7 +39,6 @@ class Usuario(db.Model):
 	id = db.Column(db.Integer, primary_key=True)
 	nombre = db.Column(db.String(100), unique=True, nullable=False)
 	password = db.Column(db.String(100), nullable=False)
-	#mensajes = db.relationship('Mensaje', backref='usuario', lazy='dynamic')
 	def __init__(self, nombre, password):
 		self.nombre = nombre
 		self.password = password
@@ -95,7 +100,7 @@ def usuario_nombre(nombre):
 def usuario_validacion(id_usuario, password):
 	usuario = Usuario.query.filter_by(id=id_usuario).first();
 	if bcrypt.checkpw(password.encode('utf-8'), usuario.password):
-		token = jwt.encode({'id': id_usuario}, 'Za Warudo', algorithm='HS256')
+		token = jwt.encode({'id': id_usuario}, env['JWT_SECRET'], algorithm='HS256')
 		return jsonify({'token':token.decode('utf-8')}), {'Content-Type': 'application/json'}
 	return 403
 #-------------------------------#
@@ -106,7 +111,7 @@ def usuario_validacion(id_usuario, password):
 def mensajes():
 	token = request.headers.get('Authorization')
 	bytes_token = token.encode('utf-8')
-	usuario_id = jwt.decode(token, 'Za Warudo', algorithms=['HS256']).get('id')
+	usuario_id = jwt.decode(token, env['JWT_SECRET'], algorithms=['HS256']).get('id')
 	
 	if request.method == 'POST':
 		mensaje = Mensaje(usuario_id, request.form.get('contenido'))
@@ -129,5 +134,5 @@ def mensajes():
 #------------------------------MAIN------------------------------#
 if __name__ == '__main__':
 	db.create_all()
-	app.run(port = 5001, debug = True)
+	app.run(host=env['CLIENT_HOST'], port=env['CLIENT_PORT'])
 #----------------------------------------------------------------#
